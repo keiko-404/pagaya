@@ -1,0 +1,74 @@
+name: PagaYa CI/CD Pipeline
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    name: 1. Compilación
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - run: npm install
+
+  test:
+    name: 2 y 3. Pruebas unitarias y de regresión
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - run: npm install
+      - run: npm test
+
+  security:
+    name: 4. Análisis de seguridad
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - run: npm install
+      - run: npm audit --audit-level=high
+
+  package:
+    name: 5. Empaquetado (Docker)
+    runs-on: ubuntu-latest
+    needs: [test, security]
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "Construyendo imagen pagaya/api:${{ github.sha }}"
+
+  deploy-staging:
+    name: 6. Despliegue a Staging
+    runs-on: ubuntu-latest
+    needs: package
+    environment: staging
+    steps:
+      - run: echo "Desplegando a staging"
+
+  deploy-canary:
+    name: 7. Despliegue Canario (5%)
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    environment: production-canary
+    steps:
+      - run: echo "5% del trafico"
+
+  deploy-full:
+    name: 8. Expansion gradual (100%)
+    runs-on: ubuntu-latest
+    needs: deploy-canary
+    environment: production
+    steps:
+      - run: echo "100% del trafico"
